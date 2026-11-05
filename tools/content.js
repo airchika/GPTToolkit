@@ -178,7 +178,6 @@
       button.type = "button";
       button.dataset.gpttoolkitHistoryIndex = String(index);
       button.textContent = `${index + 1}. ${entry.label.slice(0, 100)}`;
-      button.title = entry.label;
       item.appendChild(button);
       return item;
     }));
