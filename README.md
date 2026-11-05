@@ -27,7 +27,7 @@ If GPT Voyager is installed, disable its **Formula Copy** and **Prevent Auto Scr
 
 ## Install or update
 
-1. Clone or download [this repository](https://github.com/airchika/GPTskins).
+1. Clone or download [this repository](https://github.com/airchika/GPTToolkit).
 2. Open `chrome://extensions` or `edge://extensions` and enable **Developer mode**.
 3. Choose **Load unpacked** and select this folder.
 4. Open ChatGPT, click **GPT Toolkit**, and choose Font or Tools.
@@ -67,4 +67,4 @@ These fixtures test computed styles and tool behavior against synthetic markup; 
 
 ## Origin
 
-GPT Toolkit evolved from [dboyza/GPTskins](https://github.com/dboyza/GPTskins), with subsequent font and tool work in this repository. Version 2 removes the theme engine and adopts its own product name. Git history and the existing GitHub fork relationship are preserved.
+GPT Toolkit evolved from [dboyza/GPTskins](https://github.com/dboyza/GPTskins), with subsequent font and tool work in this repository. Version 2 removes the theme engine and adopts its own product name. GPT Toolkit is maintained independently. The original Git history and project attribution are preserved.
