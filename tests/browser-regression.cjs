@@ -146,7 +146,23 @@ const server = http.createServer((req, res) => {
     const history = page.locator("#gpttoolkit-conversation-history");
     const entries = page.locator("#gpttoolkit-history-panel li button");
     await history.waitFor();
-    await history.locator(":scope > button").click();
+    assert.equal(await history.evaluate(el => el.nextElementSibling?.getAttribute("aria-label")), "Chat actions");
+    const toggle = history.locator(":scope > button");
+    const idleWidth = await toggle.evaluate(el => el.getBoundingClientRect().width);
+    await toggle.hover();
+    assert.equal(await toggle.evaluate(el => el.getBoundingClientRect().width), idleWidth);
+    assert.equal(await toggle.textContent(), "");
+    assert.equal(await history.locator("nav").isVisible(), false);
+    // A header with paint containment must not clip the top-layer directory.
+    await page.locator('[data-testid="app-shell-header-context-menu-surface"]').evaluate(el => {
+      el.style.contain = "layout paint";
+      el.style.overflow = "hidden";
+    });
+    await toggle.click();
+    assert.equal(await history.locator("nav").evaluate(el => {
+      const rect = el.getBoundingClientRect();
+      return el.matches(":popover-open") && el.contains(document.elementFromPoint(rect.left + 20, rect.bottom - 10));
+    }), true);
     assert.equal(await entries.count(), 1);
     await page.evaluate(() => {
       const turn = document.createElement("section");
@@ -173,9 +189,9 @@ const server = http.createServer((req, res) => {
     await page.evaluate(() => { document.getElementById("ordinary-text").textContent += " streamed"; });
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     assert.equal(await entries.first().evaluate(el => el === document.activeElement), true);
-    const light = await history.evaluate(el => getComputedStyle(el).backgroundColor);
+    const light = await history.locator("nav").evaluate(el => getComputedStyle(el).backgroundColor);
     await page.evaluate(() => document.documentElement.classList.add("dark"));
-    assert.notEqual(await history.evaluate(el => getComputedStyle(el).backgroundColor), light);
+    assert.notEqual(await history.locator("nav").evaluate(el => getComputedStyle(el).backgroundColor), light);
     await page.setViewportSize({width: 390, height: 700});
     assert.equal(await history.evaluate(el => el.getBoundingClientRect().left >= 0), true);
     await page.keyboard.press("Escape");
@@ -205,6 +221,15 @@ const server = http.createServer((req, res) => {
     await history.waitFor();
     assert.equal(await entries.count(), 1);
     assert.match(await entries.first().textContent(), /关闭后编辑/);
+    // Replacing the native toolbar must remount exactly one entry.
+    await page.locator('[data-testid="app-shell-header-context-menu-surface"]').evaluate(el => {
+      const replacement = el.cloneNode(true);
+      replacement.querySelector("#gpttoolkit-conversation-history").remove();
+      el.replaceWith(replacement);
+    });
+    await history.waitFor();
+    assert.equal(await history.count(), 1);
+    assert.equal(await history.evaluate(el => el.nextElementSibling?.getAttribute("aria-label")), "Chat actions");
     console.log("PASS synthetic conversation history: nested deduplication, safe labels, jump, edits, attachments, streaming, theme, mobile, route, disable/re-enable");
 
     // Replay the semantic structure supplied by the user, without private IDs.

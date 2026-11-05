@@ -67,7 +67,7 @@
   let documentClickListenerAttached = false;
   const routeChangeEventName = "gpttoolkit:routechange";
 
-  // Only user-message changes invalidate the index; assistant streaming is ignored.
+  // User-message and toolbar changes refresh the directory; assistant streaming is ignored.
   const userMessageSelector = '[data-message-author-role="user"], [data-chatgpt-search-unit-key$=":user"]';
   let historyEnabled = false;
   let historyUi = null;
@@ -77,7 +77,9 @@
 
   function closeHistory() {
     if (!historyUi) return;
-    historyUi.querySelector("nav").hidden = true;
+    const panel = historyUi.querySelector("nav");
+    panel.hidePopover();
+    panel.hidden = true;
     historyUi.querySelector("button").setAttribute("aria-expanded", "false");
   }
 
@@ -94,8 +96,11 @@
       return;
     }
     const panel = historyUi.querySelector("nav");
-    panel.hidden = !panel.hidden;
-    button.setAttribute("aria-expanded", String(!panel.hidden));
+    if (!panel.hidden) { closeHistory(); return; }
+    panel.hidden = false;
+    panel.showPopover();
+    button.setAttribute("aria-expanded", "true");
+    positionHistoryPanel();
   }
 
   function onHistoryOutsideClick(event) {
@@ -107,6 +112,31 @@
     const focusWasInside = historyUi.contains(document.activeElement);
     closeHistory();
     if (focusWasInside) historyUi.querySelector("button").focus({ preventScroll: true });
+  }
+
+  const historyAnchorSelector = '[data-testid="app-shell-header-context-menu-surface"] button[aria-haspopup="menu"], [data-app-shell-main-titlebar] button[aria-label="Chat actions"], [data-testid="conversation-options-button"]';
+
+  function positionHistoryPanel() {
+    const panel = historyUi?.querySelector("nav");
+    if (!panel || panel.hidden) return;
+    const rect = historyUi.querySelector("button").getBoundingClientRect();
+    const width = panel.getBoundingClientRect().width;
+    panel.style.left = `${Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))}px`;
+    panel.style.top = `${rect.bottom + 8}px`;
+  }
+
+  function mountHistoryEntry() {
+    const anchor = document.querySelector(historyAnchorSelector);
+    if (!anchor || !historyUi) return false;
+    const button = historyUi.querySelector("button");
+    // Borrow native presentation only, never IDs, menu wiring or event handlers.
+    button.className = anchor.className;
+    for (const name of ["data-color", "data-variant", "data-uniform", "data-size", "data-icon-size"]) {
+      if (anchor.hasAttribute(name)) button.setAttribute(name, anchor.getAttribute(name));
+      else button.removeAttribute(name);
+    }
+    if (historyUi.nextElementSibling !== anchor) anchor.before(historyUi);
+    return true;
   }
 
   function refreshHistory() {
@@ -124,11 +154,12 @@
       historyUi = document.createElement("aside");
       historyUi.id = "gpttoolkit-conversation-history";
       historyUi.setAttribute("aria-label", "GPT Toolkit 对话目录");
-      historyUi.innerHTML = '<button type="button" aria-expanded="false" aria-controls="gpttoolkit-history-panel" aria-label="对话目录"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg><span>对话目录</span></button><nav id="gpttoolkit-history-panel" aria-label="按用户消息跳转" hidden><ol></ol></nav>';
+      historyUi.innerHTML = '<button type="button" aria-expanded="false" aria-controls="gpttoolkit-history-panel" aria-label="对话目录"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></button><nav id="gpttoolkit-history-panel" aria-label="按用户消息跳转" popover="manual" hidden><strong>对话目录</strong><ol></ol></nav>';
       historyUi.addEventListener("click", onHistoryClick);
-      document.body.appendChild(historyUi);
     }
-    historyUi.hidden = entries.length === 0;
+    const mounted = mountHistoryEntry();
+    historyUi.hidden = entries.length === 0 || !mounted;
+    if (historyUi.hidden) closeHistory();
     if (entries.length === historyEntries.length && entries.every((entry, index) =>
       entry.element === historyEntries[index].element && entry.label === historyEntries[index].label)) return;
     historyEntries = entries;
@@ -165,15 +196,18 @@
     document[method]("click", onHistoryOutsideClick);
     document[method]("keydown", onHistoryKeydown);
     window[method](routeChangeEventName, resetHistoryRoute);
+    window[method]("resize", positionHistoryPanel);
+    document[method]("scroll", positionHistoryPanel, true);
     if (enabled) {
       historyObserver = new MutationObserver(records => {
-        const touchesUser = node => node instanceof Element &&
-          (node.matches(userMessageSelector) || node.querySelector(userMessageSelector));
+        const touchesHistoryNodes = node => node instanceof Element &&
+          (node.matches(userMessageSelector + ", " + historyAnchorSelector) ||
+            node.querySelector(userMessageSelector + ", " + historyAnchorSelector) || node === historyUi);
         if (records.some(record => {
           if (record.type === "attributes") return true;
           const target = record.target instanceof Element ? record.target : record.target.parentElement;
           if (target?.closest(userMessageSelector)) return true;
-          return [...record.addedNodes, ...record.removedNodes].some(touchesUser);
+          return [...record.addedNodes, ...record.removedNodes].some(touchesHistoryNodes);
         })) scheduleHistoryRefresh();
       });
       historyObserver.observe(document.body, { childList: true, subtree: true, characterData: true,
@@ -184,6 +218,7 @@
       historyObserver = null;
       cancelAnimationFrame(historyFrame);
       historyFrame = 0;
+      closeHistory();
       historyUi?.removeEventListener("click", onHistoryClick);
       historyUi?.remove();
       historyUi = null;

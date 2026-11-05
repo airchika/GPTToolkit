@@ -1,6 +1,6 @@
 #gpttoolkit-latex-toolbar,
 #gpttoolkit-tools-toast,
-#gpttoolkit-conversation-history {
+#gpttoolkit-history-panel {
   --gpttoolkit-tools-text: #0d0d0d;
   --gpttoolkit-tools-surface: #fff;
   --gpttoolkit-tools-border: rgba(0, 0, 0, 0.14);
@@ -15,7 +15,7 @@
   font: 12px/1.2 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-html:is(.dark, [data-theme="dark"]) :is(#gpttoolkit-latex-toolbar, #gpttoolkit-tools-toast, #gpttoolkit-conversation-history) {
+html:is(.dark, [data-theme="dark"]) :is(#gpttoolkit-latex-toolbar, #gpttoolkit-tools-toast, #gpttoolkit-history-panel) {
   --gpttoolkit-tools-text: #f7f7f8;
   --gpttoolkit-tools-surface: #2f2f2f;
   --gpttoolkit-tools-border: rgba(255, 255, 255, 0.16);
@@ -72,60 +72,59 @@ html:is(.dark, [data-theme="dark"]) :is(#gpttoolkit-latex-toolbar, #gpttoolkit-t
 }
 
 #gpttoolkit-conversation-history {
-  right: 12px;
-  top: 25%;
-  max-width: calc(100vw - 24px);
-  border-radius: 10px;
-  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  pointer-events: auto;
 }
 #gpttoolkit-conversation-history[hidden],
 #gpttoolkit-conversation-history [hidden] { display: none !important; }
-#gpttoolkit-conversation-history button {
-  display: block;
-  width: 100%;
-  padding: 10px 12px;
+#gpttoolkit-conversation-history > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--height-toolbar-button, 36px);
+  height: var(--height-toolbar-button, 36px);
+  padding: 0;
   border: 0;
-  color: inherit;
+  border-radius: 8px;
+  color: var(--color-text-toolbar-action, inherit);
   background: transparent;
-  font: inherit;
-  line-height: 1.5;
-  text-align: start;
   cursor: pointer;
 }
-#gpttoolkit-conversation-history button:is(:hover, [aria-current="true"]) {
-  background: var(--gpttoolkit-tools-hover);
+#gpttoolkit-conversation-history > button:is(:hover, [aria-expanded="true"]) {
+  background: var(--color-primary-ghost-hover, var(--gpttoolkit-tools-hover, rgba(128, 128, 128, 0.15)));
 }
 #gpttoolkit-conversation-history button:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: -3px;
 }
 #gpttoolkit-history-panel {
-  width: min(300px, calc(100vw - 24px));
-  max-height: 50vh;
+  inset: auto;
+  margin: 0;
+  width: min(300px, calc(100vw - 16px));
+  max-height: min(60vh, calc(100dvh - 80px));
   overflow-y: auto;
   overscroll-behavior: contain;
-  border-top: 1px solid var(--gpttoolkit-tools-border);
+  border-radius: 12px;
+  padding: 4px;
 }
-#gpttoolkit-history-panel ol { list-style: none; padding: 4px; margin: 0; }
-#gpttoolkit-history-panel button { border-radius: 6px; overflow-wrap: anywhere; }
-
-/* Keep the entry quiet until pointer or keyboard interaction. */
-#gpttoolkit-conversation-history > button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-width: 44px;
-  min-height: 44px;
-}
-#gpttoolkit-conversation-history > button svg { flex: none; }
-#gpttoolkit-conversation-history > button span { white-space: nowrap; }
-#gpttoolkit-conversation-history:not(:hover):not(:focus-within):has(> button[aria-expanded="false"]) {
-  opacity: 0.4;
+#gpttoolkit-history-panel > strong { display: block; padding: 10px 12px; font-weight: 600; }
+#gpttoolkit-history-panel ol { list-style: none; padding: 0; margin: 0; }
+#gpttoolkit-history-panel button {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: inherit;
   background: transparent;
-  border-color: transparent;
-  box-shadow: none;
+  font: inherit;
+  line-height: 1.5;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
 }
-#gpttoolkit-conversation-history:not(:hover):not(:focus-within) > button[aria-expanded="false"] span {
-  display: none;
+#gpttoolkit-history-panel button:is(:hover, [aria-current="true"]) {
+  background: var(--gpttoolkit-tools-hover);
 }
