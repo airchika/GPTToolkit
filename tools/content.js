@@ -67,6 +67,130 @@
   let documentClickListenerAttached = false;
   const routeChangeEventName = "gpttoolkit:routechange";
 
+  // Only user-message changes invalidate the index; assistant streaming is ignored.
+  const userMessageSelector = '[data-message-author-role="user"], [data-chatgpt-search-unit-key$=":user"]';
+  let historyEnabled = false;
+  let historyUi = null;
+  let historyObserver = null;
+  let historyFrame = 0;
+  let historyEntries = [];
+
+  function closeHistory() {
+    if (!historyUi) return;
+    historyUi.querySelector("nav").hidden = true;
+    historyUi.querySelector("button").setAttribute("aria-expanded", "false");
+  }
+
+  function onHistoryClick(event) {
+    const button = event.target.closest("button");
+    if (!button || !historyUi.contains(button)) return;
+    if (button.hasAttribute("data-gpttoolkit-history-index")) {
+      const entry = historyEntries[Number(button.dataset.gpttoolkitHistoryIndex)];
+      if (!entry?.element.isConnected) { scheduleHistoryRefresh(); return; }
+      disarmScrollGuard();
+      entry.element.scrollIntoView({ block: "center", behavior: "instant" });
+      historyUi.querySelectorAll("[aria-current]").forEach(item => item.removeAttribute("aria-current"));
+      button.setAttribute("aria-current", "true");
+      return;
+    }
+    const panel = historyUi.querySelector("nav");
+    panel.hidden = !panel.hidden;
+    button.setAttribute("aria-expanded", String(!panel.hidden));
+  }
+
+  function onHistoryOutsideClick(event) {
+    if (historyUi && !historyUi.contains(event.target)) closeHistory();
+  }
+
+  function onHistoryKeydown(event) {
+    if (event.key !== "Escape" || !historyUi || historyUi.querySelector("nav").hidden) return;
+    const focusWasInside = historyUi.contains(document.activeElement);
+    closeHistory();
+    if (focusWasInside) historyUi.querySelector("button").focus({ preventScroll: true });
+  }
+
+  function refreshHistory() {
+    historyFrame = 0;
+    if (!historyEnabled) return;
+    const candidates = Array.from(document.querySelectorAll(userMessageSelector));
+    const entries = candidates.filter(element => !element.parentElement?.closest(userMessageSelector))
+      .map((element, index) => {
+        // Inner content avoids edit/copy controls in a search-unit wrapper.
+        const content = element.querySelector('[data-message-author-role="user"]') || element;
+        const text = (content.innerText || content.textContent || "").replace(/\s+/g, " ").trim();
+        return { element, label: text || `第 ${index + 1} 条消息（图片或附件）` };
+      });
+    if (!historyUi) {
+      historyUi = document.createElement("aside");
+      historyUi.id = "gpttoolkit-conversation-history";
+      historyUi.setAttribute("aria-label", "GPT Toolkit 对话目录");
+      historyUi.innerHTML = '<button type="button" aria-expanded="false" aria-controls="gpttoolkit-history-panel">对话目录</button><nav id="gpttoolkit-history-panel" aria-label="按用户消息跳转" hidden><ol></ol></nav>';
+      historyUi.addEventListener("click", onHistoryClick);
+      document.body.appendChild(historyUi);
+    }
+    historyUi.hidden = entries.length === 0;
+    if (entries.length === historyEntries.length && entries.every((entry, index) =>
+      entry.element === historyEntries[index].element && entry.label === historyEntries[index].label)) return;
+    historyEntries = entries;
+    const list = historyUi.querySelector("ol");
+    list.replaceChildren(...entries.map((entry, index) => {
+      const item = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.gpttoolkitHistoryIndex = String(index);
+      button.textContent = `${index + 1}. ${entry.label.slice(0, 100)}`;
+      button.title = entry.label;
+      item.appendChild(button);
+      return item;
+    }));
+  }
+
+  function scheduleHistoryRefresh() {
+    if (historyEnabled && !historyFrame) historyFrame = requestAnimationFrame(refreshHistory);
+  }
+
+  function resetHistoryRoute() {
+    closeHistory();
+    historyEntries = [];
+    historyUi?.removeEventListener("click", onHistoryClick);
+    historyUi?.remove();
+    historyUi = null;
+    scheduleHistoryRefresh();
+  }
+
+  function syncHistoryFeature(enabled) {
+    if (enabled === historyEnabled) return;
+    historyEnabled = enabled;
+    const method = enabled ? "addEventListener" : "removeEventListener";
+    document[method]("click", onHistoryOutsideClick);
+    document[method]("keydown", onHistoryKeydown);
+    window[method](routeChangeEventName, resetHistoryRoute);
+    if (enabled) {
+      historyObserver = new MutationObserver(records => {
+        const touchesUser = node => node instanceof Element &&
+          (node.matches(userMessageSelector) || node.querySelector(userMessageSelector));
+        if (records.some(record => {
+          if (record.type === "attributes") return true;
+          const target = record.target instanceof Element ? record.target : record.target.parentElement;
+          if (target?.closest(userMessageSelector)) return true;
+          return [...record.addedNodes, ...record.removedNodes].some(touchesUser);
+        })) scheduleHistoryRefresh();
+      });
+      historyObserver.observe(document.body, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["data-message-author-role", "data-chatgpt-search-unit-key"] });
+      scheduleHistoryRefresh();
+    } else {
+      historyObserver?.disconnect();
+      historyObserver = null;
+      cancelAnimationFrame(historyFrame);
+      historyFrame = 0;
+      historyUi?.removeEventListener("click", onHistoryClick);
+      historyUi?.remove();
+      historyUi = null;
+      historyEntries = [];
+    }
+  }
+
   function readFormulaSource(element) {
     if (!element) {
       return "";
@@ -710,6 +834,9 @@
     if (areaName !== "sync") {
       return;
     }
+    if (changes[toolsApi.conversationHistoryEnabledStorageKey]) {
+      syncHistoryFeature(changes[toolsApi.conversationHistoryEnabledStorageKey].newValue !== false);
+    }
     let featureListenersChanged = false;
     if (changes[toolsApi.scrollGuardEnabledStorageKey]) {
       scrollGuardEnabled = changes[toolsApi.scrollGuardEnabledStorageKey].newValue !== false;
@@ -742,6 +869,7 @@
       scrollGuardEnabled = result[toolsApi.scrollGuardEnabledStorageKey] !== false;
       latexCopyEnabled = result[toolsApi.latexCopyEnabledStorageKey] !== false;
       latexTexEnabled = result[toolsApi.latexTexEnabledStorageKey] !== false;
+      syncHistoryFeature(result[toolsApi.conversationHistoryEnabledStorageKey] !== false);
       syncFormulaMenuOptions();
       syncFeatureEventListeners();
     }

@@ -120,7 +120,8 @@
     return Boolean(enabled && getBottomGap(metrics) > scrollBottomGapThreshold);
   }
 
-  const toolStorageKeys = [scrollGuardEnabledStorageKey, latexCopyEnabledStorageKey, latexTexEnabledStorageKey];
+  const conversationHistoryEnabledStorageKey = "gpttoolkit.conversationHistory.enabled";
+  const toolStorageKeys = [scrollGuardEnabledStorageKey, latexCopyEnabledStorageKey, latexTexEnabledStorageKey, conversationHistoryEnabledStorageKey];
   function resolveToolSettings(settings = {}) {
     return Object.fromEntries(toolStorageKeys.map((key) => {
       const oldKey = key.replace("gpttoolkit.", "gptskins.");
@@ -150,6 +151,7 @@
 
   globalThis.GPTToolkitTools = {
     resolveToolSettings, getToolMigration, loadToolSettings,
+    conversationHistoryEnabledStorageKey,
     scrollGuardEnabledStorageKey,
     latexCopyEnabledStorageKey,
     latexTexEnabledStorageKey,

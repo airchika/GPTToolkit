@@ -1,6 +1,6 @@
 # GPT Toolkit
 
-A dependency-free Manifest V3 extension with local font controls and two practical tools for ChatGPT. ChatGPT owns its appearance: this extension does not change page colors, themes, borders, or layout.
+A dependency-free Manifest V3 extension with local font controls and practical tools for ChatGPT. ChatGPT owns its appearance: this extension does not change page colors, themes, borders, or layout.
 
 ## Fonts
 
@@ -12,10 +12,11 @@ The **Font** tab opens by default. Four independent controls use fonts installed
 
 The two code slots form an ordered, deduplicated font stack followed by system monospace fallbacks. Missing local fonts fall back; fonts are never downloaded or bundled. Select **GPT Default** to remove a role's override. Both code slots must be Default to restore the native code stack. Mathematical typesetting keeps its own fonts.
 
-## Reading Position and LaTeX Copy
+## Conversation History, Reading Position and LaTeX Copy
 
-Both tools are enabled by default and can be switched independently from the **Tools** tab.
+These tools are enabled by default and can be switched independently from the **Tools** tab.
 
+- **Conversation history / 对话目录** adds a collapsible list on the right, ordered by your messages. Click an entry to return to that message. New messages and edits update the list; switching chats resets it. Escape or clicking outside collapses it. Only messages currently loaded in the page can be indexed, including attachment-only messages. No conversation data is fetched or stored. Disable it independently in **Tools**.
 - **Keep reading position** activates only when a real composer form submission happens while the thread is more than 150px from the bottom. It keeps the currently visible turn anchored for at most two seconds, but cancels immediately when you use the wheel, touch scrolling, paging keys, the scrollbar, or ChatGPT's scroll-to-bottom control. Sending at the bottom remains fully native.
 - **LaTeX quick copy** shows one small reusable toolbar that follows the active light or dark theme when you click a formula in an assistant response without an active text selection. Choose raw `tex`, inline `$…$`, or display `$$…$$` without changing ChatGPT's formula DOM. Inline copies collapse source line breaks and adjacent whitespace to one space so the result stays on one Markdown line. The raw `tex` choice can be hidden independently; `$…$` and `$$…$$` always remain available.
 - The **去框 $** and **去框 $$** options copy inline and display formulas after removing complete outer `\boxed{…}` wrappers, including nested wrappers. Both trim whitespace inside the dollar delimiters and remove trailing commas and periods. Inline copies flatten line breaks; display copies preserve internal line breaks. The original copy options retain boxes; incomplete or partial-formula boxes are preserved.
@@ -41,7 +42,7 @@ No build step or runtime packages are required. Permissions remain `activeTab` a
 
 - `shared/fonts.js`: local font options and settings migration.
 - `content/`: font-only CSS/runtime and the shared route notification.
-- `tools/`: reading-position protection, LaTeX copying, and tool settings migration.
+- `tools/`: conversation navigation, reading-position protection, LaTeX copying, and tool settings migration.
 - `popup/`: Font and Tools settings.
 - `icons/toolkit.svg`: editable source for the toolbar PNG icons.
 - `tests/`: Node contracts/runtime tests and synthetic browser fixtures.

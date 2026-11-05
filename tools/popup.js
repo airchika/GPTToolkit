@@ -5,13 +5,20 @@
   const scrollGuardToggle = document.querySelector("[data-gpttoolkit-scroll-guard-enabled]");
   const latexCopyToggle = document.querySelector("[data-gpttoolkit-latex-copy-enabled]");
   const latexTexToggle = document.querySelector("[data-gpttoolkit-latex-tex-enabled]");
+  const historyToggle = document.querySelector("[data-gpttoolkit-conversation-history-enabled]");
   const toolsTab = document.querySelector('[data-style-mode="tools"]');
   const status = document.getElementById("status");
-  if (!toolsApi || !scrollGuardToggle || !latexCopyToggle || !latexTexToggle) {
+  if (!toolsApi || !scrollGuardToggle || !latexCopyToggle || !latexTexToggle || !historyToggle) {
     return;
   }
 
   const toolSettings = [
+    {
+      toggle: historyToggle,
+      storageKey: toolsApi.conversationHistoryEnabledStorageKey,
+      enabledText: "Conversation history enabled.",
+      disabledText: "Conversation history disabled."
+    },
     {
       toggle: scrollGuardToggle,
       storageKey: toolsApi.scrollGuardEnabledStorageKey,
@@ -44,7 +51,7 @@
   );
 
   toolsTab?.addEventListener("click", () => {
-    status.textContent = "Reading-position protection and LaTeX quick copy are enabled by default.";
+    status.textContent = "Conversation history, reading-position protection and LaTeX quick copy are enabled by default.";
   });
 
   toolSettings.forEach(({ toggle, storageKey, enabledText, disabledText }) => {

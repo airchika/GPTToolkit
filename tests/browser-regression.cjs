@@ -92,7 +92,9 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.locator("#tools-panel").isVisible(), true);
     await page.uncheck("[data-gpttoolkit-latex-copy-enabled]");
     assert.equal(await page.evaluate(()=>fixtureSettings["gpttoolkit.latexCopy.enabled"]), false);
-    console.log("PASS synthetic popup defaults, font selection and tool toggle");
+    await page.uncheck("[data-gpttoolkit-conversation-history-enabled]");
+    assert.equal(await page.evaluate(()=>fixtureSettings["gpttoolkit.conversationHistory.enabled"]), false);
+    console.log("PASS synthetic popup defaults, font selection and tool toggles");
 
     await page.goto(base + "/tests/fixtures/tools-browser.html");
     await page.click("#run-mixed-copy");
@@ -138,6 +140,72 @@ const server = http.createServer((req, res) => {
       scroller.dispatchEvent(new Event("scroll"));
       return scroller.scrollTop;
     }),300);
+
+    // User-message navigation: real scrolling in a nested transcript scroller.
+    await page.goto(base + "/tests/fixtures/tools-browser.html");
+    const history = page.locator("#gpttoolkit-conversation-history");
+    const entries = page.locator("#gpttoolkit-history-panel li button");
+    await history.waitFor();
+    await history.locator(":scope > button").click();
+    assert.equal(await entries.count(), 1);
+    await page.evaluate(() => {
+      const turn = document.createElement("section");
+      turn.dataset.chatgptSearchUnitKey = "new:user";
+      turn.innerHTML = '<div data-message-author-role="user" id="history-user">第二个问题 &lt;script&gt;安全文本&lt;/script&gt;</div>';
+      document.querySelector("main").append(turn);
+    });
+    await page.waitForFunction(() => document.querySelectorAll("#gpttoolkit-history-panel li").length === 2);
+    assert.match(await entries.nth(1).textContent(), /第二个问题 <script>安全文本<\/script>/);
+    assert.equal(await history.locator("script").count(), 0);
+    await entries.nth(1).click();
+    assert.equal(await entries.nth(1).getAttribute("aria-current"), "true");
+    assert.equal(await page.locator("#history-user").evaluate(el => {
+      const rect = el.getBoundingClientRect();
+      const scroller = document.getElementById("thread-scroll").getBoundingClientRect();
+      return rect.top >= scroller.top && rect.bottom <= scroller.bottom;
+    }), true);
+    await page.evaluate(() => { document.getElementById("history-user").textContent = "编辑后的问题"; });
+    await page.waitForFunction(() => document.querySelectorAll("#gpttoolkit-history-panel li")[1].textContent.includes("编辑后的问题"));
+    await page.evaluate(() => { document.getElementById("history-user").textContent = ""; });
+    await page.waitForFunction(() => document.querySelectorAll("#gpttoolkit-history-panel li")[1].textContent.includes("图片或附件"));
+    // Assistant streaming must not rebuild or disturb the focused directory item.
+    await entries.first().focus();
+    await page.evaluate(() => { document.getElementById("ordinary-text").textContent += " streamed"; });
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    assert.equal(await entries.first().evaluate(el => el === document.activeElement), true);
+    const light = await history.evaluate(el => getComputedStyle(el).backgroundColor);
+    await page.evaluate(() => document.documentElement.classList.add("dark"));
+    assert.notEqual(await history.evaluate(el => getComputedStyle(el).backgroundColor), light);
+    await page.setViewportSize({width: 390, height: 700});
+    assert.equal(await history.evaluate(el => el.getBoundingClientRect().left >= 0), true);
+    await page.keyboard.press("Escape");
+    assert.equal(await history.locator("nav").isVisible(), false);
+    assert.equal(await history.locator(":scope > button").evaluate(el => el === document.activeElement), true);
+    await page.setViewportSize({width: 1280, height: 720});
+    await page.evaluate(() => {
+      document.querySelector("main").replaceChildren();
+      window.dispatchEvent(new Event("gpttoolkit:routechange"));
+    });
+    await page.waitForFunction(() => document.getElementById("gpttoolkit-conversation-history")?.hidden);
+    await page.evaluate(() => {
+      const turn = document.createElement("div");
+      turn.dataset.messageAuthorRole = "user";
+      turn.textContent = "新聊天";
+      document.querySelector("main").append(turn);
+    });
+    await history.waitFor();
+    assert.equal(await entries.count(), 1);
+    assert.match(await entries.first().textContent(), /新聊天/);
+    await page.evaluate(() => fixtureStorageListeners.forEach(fn => fn({"gpttoolkit.conversationHistory.enabled":{newValue:false}}, "sync")));
+    assert.equal(await history.count(), 0);
+    await page.evaluate(() => { document.querySelector('[data-message-author-role="user"]').textContent = "关闭后编辑"; });
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
+    assert.equal(await history.count(), 0);
+    await page.evaluate(() => fixtureStorageListeners.forEach(fn => fn({"gpttoolkit.conversationHistory.enabled":{newValue:true}}, "sync")));
+    await history.waitFor();
+    assert.equal(await entries.count(), 1);
+    assert.match(await entries.first().textContent(), /关闭后编辑/);
+    console.log("PASS synthetic conversation history: nested deduplication, safe labels, jump, edits, attachments, streaming, theme, mobile, route, disable/re-enable");
 
     // Replay the semantic structure supplied by the user, without private IDs.
     await page.goto(base + "/tests/fixtures/tools-browser.html");

@@ -159,9 +159,14 @@ const oldSettings = { "gptskins.scrollGuard.enabled": false, "gptskins.latexCopy
 assert.deepEqual(toolsApi.resolveToolSettings(oldSettings), {
   "gpttoolkit.scrollGuard.enabled": false,
   "gpttoolkit.latexCopy.enabled": true,
-  "gpttoolkit.latexCopy.tex.enabled": true
+  "gpttoolkit.latexCopy.tex.enabled": true,
+  "gpttoolkit.conversationHistory.enabled": true
 });
 assert.deepEqual(toolsApi.getToolMigration(oldSettings), {
-  "gpttoolkit.scrollGuard.enabled": false, "gpttoolkit.latexCopy.tex.enabled": true
+  "gpttoolkit.scrollGuard.enabled": false, "gpttoolkit.latexCopy.tex.enabled": true,
+  "gpttoolkit.conversationHistory.enabled": true
 });
 assert.deepEqual(toolsApi.getToolMigration({...oldSettings, ...toolsApi.getToolMigration(oldSettings)}), {});
+
+assert.equal(toolsApi.resolveToolSettings({ "gpttoolkit.conversationHistory.enabled": false })[toolsApi.conversationHistoryEnabledStorageKey], false);
+assert.equal(toolsApi.getToolMigration({ "gpttoolkit.conversationHistory.enabled": false })[toolsApi.conversationHistoryEnabledStorageKey], undefined);
