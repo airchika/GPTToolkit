@@ -97,6 +97,10 @@
     }
     const panel = historyUi.querySelector("nav");
     if (!panel.hidden) { closeHistory(); return; }
+    // Route notifications may precede React hiding/reusing cached transcripts.
+    // Refresh on demand, after navigation has settled, without another polling loop.
+    refreshHistory();
+    if (historyUi.hidden) return;
     panel.hidden = false;
     panel.showPopover();
     button.setAttribute("aria-expanded", "true");
@@ -140,10 +144,14 @@
   }
 
   function refreshHistory() {
+    cancelAnimationFrame(historyFrame);
     historyFrame = 0;
     if (!historyEnabled) return;
     const candidates = Array.from(document.querySelectorAll(userMessageSelector));
-    const entries = candidates.filter(element => !element.parentElement?.closest(userMessageSelector))
+    const entries = candidates.filter(element =>
+      !element.parentElement?.closest(userMessageSelector) &&
+      !element.closest('[hidden], [aria-hidden="true"], [inert]') &&
+      (element.checkVisibility ? element.checkVisibility({ visibilityProperty: true }) : element.getClientRects().length > 0))
       .map((element, index) => {
         // Inner content avoids edit/copy controls in a search-unit wrapper.
         const content = element.querySelector('[data-message-author-role="user"]') || element;

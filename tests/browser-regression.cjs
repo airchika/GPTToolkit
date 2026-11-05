@@ -230,6 +230,36 @@ const server = http.createServer((req, res) => {
     await history.waitFor();
     assert.equal(await history.count(), 1);
     assert.equal(await history.evaluate(el => el.nextElementSibling?.getAttribute("aria-label")), "Chat actions");
+    // SPA navigation can fire before the old transcript is hidden, and keep it cached.
+    await page.evaluate(() => window.dispatchEvent(new Event("gpttoolkit:routechange")));
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await page.evaluate(() => {
+      const previous = document.querySelector("main");
+      previous.setAttribute("aria-hidden", "true");
+      previous.style.display = "none";
+      const current = document.createElement("main");
+      current.id = "active-conversation";
+      current.innerHTML = '<div data-chatgpt-search-unit-key="active:user"><div data-message-author-role="user">当前对话的问题</div></div>';
+      document.getElementById("thread-scroll").append(current);
+    });
+    await history.locator(":scope > button").click();
+    assert.equal(await entries.count(), 1, "cached previous transcripts must not leak into the current directory");
+    assert.match(await entries.first().textContent(), /当前对话的问题/);
+    // Switching back can reuse existing nodes and only change CSS visibility.
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event("gpttoolkit:routechange"));
+    });
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await page.evaluate(() => {
+      document.getElementById("active-conversation").style.display = "none";
+      const previous = document.querySelector("main");
+      previous.removeAttribute("aria-hidden");
+      previous.style.display = "";
+    });
+    await history.locator(":scope > button").click();
+    assert.equal(await entries.count(), 1);
+    assert.match(await entries.first().textContent(), /关闭后编辑/);
+    console.log("PASS cached SPA conversations: early route event, hidden transcript exclusion and reused nodes on return");
     console.log("PASS synthetic conversation history: nested deduplication, safe labels, jump, edits, attachments, streaming, theme, mobile, route, disable/re-enable");
 
     // Replay the semantic structure supplied by the user, without private IDs.
