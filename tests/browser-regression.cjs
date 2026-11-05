@@ -262,6 +262,54 @@ const server = http.createServer((req, res) => {
     console.log("PASS cached SPA conversations: early route event, hidden transcript exclusion and reused nodes on return");
     console.log("PASS synthetic conversation history: nested deduplication, safe labels, jump, edits, attachments, streaming, theme, mobile, route, disable/re-enable");
 
+    // Back bookmarks are consumed in LIFO order, preserving nested and page scroll.
+    await page.goto(base + "/tests/fixtures/tools-browser.html");
+    await page.evaluate(() => {
+      document.body.style.minHeight = "2600px";
+      const header = document.querySelector("header");
+      Object.assign(header.style, {position:"fixed", top:"0", right:"0", zIndex:"100"});
+      document.querySelector("main").innerHTML = Array.from({length:5}, (_, i) =>
+        `<section data-testid="conversation-turn-${i}" style="height:600px"><div data-message-author-role="user">书签测试 ${i}</div></section>`).join("");
+      document.getElementById("thread-scroll").scrollTop = 850;
+      window.scrollTo(0, 100);
+    });
+    await page.waitForFunction(() => document.querySelectorAll("#gpttoolkit-history-panel li").length === 5);
+    const back = page.locator("[data-gpttoolkit-history-back]");
+    const readScroll = () => page.evaluate(() => ({top:document.getElementById("thread-scroll").scrollTop, page:document.scrollingElement.scrollTop}));
+    const firstPosition = await readScroll();
+    await history.locator(":scope > button").click();
+    assert.equal(await back.isVisible(), false);
+    await entries.nth(4).click();
+    assert.equal(await back.isVisible(), true);
+    const secondPosition = await readScroll();
+    assert.notEqual(secondPosition.top, firstPosition.top);
+    await entries.first().click();
+    assert.notDeepEqual(await readScroll(), secondPosition);
+    await back.click();
+    assert.deepEqual(await readScroll(), secondPosition);
+    assert.equal(await back.isVisible(), true, "one earlier bookmark must remain");
+    assert.equal(await entries.nth(4).getAttribute("aria-current"), "true");
+    await back.click();
+    assert.deepEqual(await readScroll(), firstPosition);
+    assert.equal(await back.isVisible(), false, "consuming the last bookmark hides the button");
+    // Hiding/reopening the panel must not discard bookmarks.
+    await entries.nth(3).click();
+    await history.locator(":scope > button").click();
+    await history.locator(":scope > button").click();
+    assert.equal(await back.isVisible(), true);
+    // Navigation clears bookmarks so positions cannot leak into another chat.
+    await page.evaluate(() => window.dispatchEvent(new Event("gpttoolkit:routechange")));
+    await history.waitFor();
+    await history.locator(":scope > button").click();
+    assert.equal(await back.isVisible(), false);
+    await entries.nth(2).click();
+    await page.evaluate(() => fixtureStorageListeners.forEach(fn => fn({"gpttoolkit.conversationHistory.enabled":{newValue:false}}, "sync")));
+    await page.evaluate(() => fixtureStorageListeners.forEach(fn => fn({"gpttoolkit.conversationHistory.enabled":{newValue:true}}, "sync")));
+    await history.waitFor();
+    await history.locator(":scope > button").click();
+    assert.equal(await back.isVisible(), false);
+    console.log("PASS stacked directory bookmarks: LIFO, exact nested/page scroll, active item, exhaustion, reopen, route and disable cleanup");
+
     // Replay the semantic structure supplied by the user, without private IDs.
     await page.goto(base + "/tests/fixtures/tools-browser.html");
     await page.locator("#thread-scroll").evaluate((el, html) => { el.innerHTML = html; },

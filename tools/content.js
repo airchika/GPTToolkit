@@ -74,6 +74,7 @@
   let historyObserver = null;
   let historyFrame = 0;
   let historyEntries = [];
+  let historyBackStack = [];
 
   function closeHistory() {
     if (!historyUi) return;
@@ -83,12 +84,66 @@
     historyUi.querySelector("button").setAttribute("aria-expanded", "false");
   }
 
+  function syncHistoryBackButton() {
+    const button = historyUi?.querySelector("[data-gpttoolkit-history-back]");
+    if (button) button.hidden = historyBackStack.length === 0;
+  }
+
+  function saveHistoryPosition(element) {
+    const positions = [];
+    // scrollIntoView can move both the transcript and its outer scroll containers.
+    for (let container = element.parentElement; container; container = container.parentElement) {
+      if (container === document.scrollingElement ||
+          ((container.scrollHeight > container.clientHeight || container.scrollWidth > container.clientWidth) &&
+           /auto|scroll|overlay|hidden/.test(getComputedStyle(container).overflow))) {
+        positions.push({ container, top: container.scrollTop, left: container.scrollLeft });
+      }
+    }
+    const current = historyUi.querySelector("li button[aria-current]");
+    historyBackStack.push({
+      route: location.pathname,
+      positions,
+      activeMessage: current ? historyEntries[Number(current.dataset.gpttoolkitHistoryIndex)]?.element : null
+    });
+    syncHistoryBackButton();
+  }
+
+  function restoreHistoryPosition() {
+    const bookmark = historyBackStack.pop();
+    if (!bookmark) return;
+    if (bookmark.route !== location.pathname) {
+      historyBackStack = [];
+    } else {
+      disarmScrollGuard();
+      for (const position of bookmark.positions.slice().reverse()) {
+        if (position.container.isConnected) {
+          position.container.scrollTo({ top: position.top, left: position.left, behavior: "instant" });
+        }
+      }
+      historyUi.querySelectorAll("li button").forEach(button => {
+        const entry = historyEntries[Number(button.dataset.gpttoolkitHistoryIndex)];
+        if (entry?.element === bookmark.activeMessage) button.setAttribute("aria-current", "true");
+        else button.removeAttribute("aria-current");
+      });
+    }
+    const backButton = historyUi.querySelector("[data-gpttoolkit-history-back]");
+    if (!historyBackStack.length && document.activeElement === backButton) {
+      historyUi.querySelector(":scope > button").focus({ preventScroll: true });
+    }
+    syncHistoryBackButton();
+  }
+
   function onHistoryClick(event) {
     const button = event.target.closest("button");
     if (!button || !historyUi.contains(button)) return;
+    if (button.hasAttribute("data-gpttoolkit-history-back")) {
+      restoreHistoryPosition();
+      return;
+    }
     if (button.hasAttribute("data-gpttoolkit-history-index")) {
       const entry = historyEntries[Number(button.dataset.gpttoolkitHistoryIndex)];
       if (!entry?.element.isConnected) { scheduleHistoryRefresh(); return; }
+      saveHistoryPosition(entry.element);
       disarmScrollGuard();
       entry.element.scrollIntoView({ block: "center", behavior: "instant" });
       historyUi.querySelectorAll("[aria-current]").forEach(item => item.removeAttribute("aria-current"));
@@ -162,8 +217,9 @@
       historyUi = document.createElement("aside");
       historyUi.id = "gpttoolkit-conversation-history";
       historyUi.setAttribute("aria-label", "GPT Toolkit 对话目录");
-      historyUi.innerHTML = '<button type="button" aria-expanded="false" aria-controls="gpttoolkit-history-panel" aria-label="对话目录"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></button><nav id="gpttoolkit-history-panel" aria-label="按用户消息跳转" popover="manual" hidden><strong>对话目录</strong><ol></ol></nav>';
+      historyUi.innerHTML = '<button type="button" aria-expanded="false" aria-controls="gpttoolkit-history-panel" aria-label="对话目录"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></button><nav id="gpttoolkit-history-panel" aria-label="按用户消息跳转" popover="manual" hidden><div data-gpttoolkit-history-heading><strong>对话目录</strong><button type="button" data-gpttoolkit-history-back aria-label="回到上次跳转前的位置" hidden>↶ 回退</button></div><ol></ol></nav>';
       historyUi.addEventListener("click", onHistoryClick);
+      syncHistoryBackButton();
     }
     const mounted = mountHistoryEntry();
     historyUi.hidden = entries.length === 0 || !mounted;
@@ -190,6 +246,7 @@
   function resetHistoryRoute() {
     closeHistory();
     historyEntries = [];
+    historyBackStack = [];
     historyUi?.removeEventListener("click", onHistoryClick);
     historyUi?.remove();
     historyUi = null;
@@ -230,6 +287,7 @@
       historyUi?.remove();
       historyUi = null;
       historyEntries = [];
+      historyBackStack = [];
     }
   }
 

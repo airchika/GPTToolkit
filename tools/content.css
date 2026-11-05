@@ -109,7 +109,15 @@ html:is(.dark, [data-theme="dark"]) :is(#gpttoolkit-latex-toolbar, #gpttoolkit-t
   border-radius: 12px;
   padding: 4px;
 }
-#gpttoolkit-history-panel > strong { display: block; padding: 10px 12px; font-weight: 600; }
+#gpttoolkit-history-panel [data-gpttoolkit-history-heading] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 8px 4px 12px;
+}
+#gpttoolkit-history-panel [data-gpttoolkit-history-heading] strong { padding-block: 6px; font-weight: 600; }
+#gpttoolkit-history-panel button[data-gpttoolkit-history-back] { width: auto; padding: 6px 8px; flex: none; }
 #gpttoolkit-history-panel ol { list-style: none; padding: 0; margin: 0; }
 #gpttoolkit-history-panel button {
   display: block;
