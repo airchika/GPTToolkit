@@ -108,3 +108,24 @@ html:is(.dark, [data-theme="dark"]) :is(#gpttoolkit-latex-toolbar, #gpttoolkit-t
 }
 #gpttoolkit-history-panel ol { list-style: none; padding: 4px; margin: 0; }
 #gpttoolkit-history-panel button { border-radius: 6px; overflow-wrap: anywhere; }
+
+/* Keep the entry quiet until pointer or keyboard interaction. */
+#gpttoolkit-conversation-history > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 44px;
+  min-height: 44px;
+}
+#gpttoolkit-conversation-history > button svg { flex: none; }
+#gpttoolkit-conversation-history > button span { white-space: nowrap; }
+#gpttoolkit-conversation-history:not(:hover):not(:focus-within):has(> button[aria-expanded="false"]) {
+  opacity: 0.4;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+#gpttoolkit-conversation-history:not(:hover):not(:focus-within) > button[aria-expanded="false"] span {
+  display: none;
+}

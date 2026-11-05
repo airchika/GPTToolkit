@@ -124,7 +124,7 @@
       historyUi = document.createElement("aside");
       historyUi.id = "gpttoolkit-conversation-history";
       historyUi.setAttribute("aria-label", "GPT Toolkit 对话目录");
-      historyUi.innerHTML = '<button type="button" aria-expanded="false" aria-controls="gpttoolkit-history-panel">对话目录</button><nav id="gpttoolkit-history-panel" aria-label="按用户消息跳转" hidden><ol></ol></nav>';
+      historyUi.innerHTML = '<button type="button" aria-expanded="false" aria-controls="gpttoolkit-history-panel" aria-label="对话目录"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg><span>对话目录</span></button><nav id="gpttoolkit-history-panel" aria-label="按用户消息跳转" hidden><ol></ol></nav>';
       historyUi.addEventListener("click", onHistoryClick);
       document.body.appendChild(historyUi);
     }
