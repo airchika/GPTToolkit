@@ -910,6 +910,7 @@
     document[method]("touchstart", onScrollGuardUserIntent, { passive: true, capture: true });
     document[method]("keydown", onUserKeydown, true);
     document[method]("pointerdown", onPointerDown, true);
+    window[method]("gpttoolkit:readingjump", onScrollGuardUserIntent);
   }
 
   function syncLatexCopyListeners() {

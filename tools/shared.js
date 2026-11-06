@@ -121,7 +121,8 @@
   }
 
   const conversationHistoryEnabledStorageKey = "gpttoolkit.conversationHistory.enabled";
-  const toolStorageKeys = [scrollGuardEnabledStorageKey, latexCopyEnabledStorageKey, latexTexEnabledStorageKey, conversationHistoryEnabledStorageKey];
+  const bookmarksEnabledStorageKey = "gpttoolkit.bookmarks.enabled";
+  const toolStorageKeys = [scrollGuardEnabledStorageKey, latexCopyEnabledStorageKey, latexTexEnabledStorageKey, conversationHistoryEnabledStorageKey, bookmarksEnabledStorageKey];
   function resolveToolSettings(settings = {}) {
     return Object.fromEntries(toolStorageKeys.map((key) => {
       const oldKey = key.replace("gpttoolkit.", "gptskins.");
@@ -152,6 +153,7 @@
   globalThis.GPTToolkitTools = {
     resolveToolSettings, getToolMigration, loadToolSettings,
     conversationHistoryEnabledStorageKey,
+    bookmarksEnabledStorageKey,
     scrollGuardEnabledStorageKey,
     latexCopyEnabledStorageKey,
     latexTexEnabledStorageKey,

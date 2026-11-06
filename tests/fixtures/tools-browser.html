@@ -53,6 +53,20 @@
       globalThis.chrome.runtime = {};
       globalThis.fixtureStorageListeners = [];
       globalThis.chrome.storage = {
+        local: {
+          get(key, callback) {
+            callback({ [key]: JSON.parse(localStorage.getItem(key) || "null") });
+          },
+          set(values, callback) {
+            const changes = {};
+            for (const [key, value] of Object.entries(values)) {
+              localStorage.setItem(key, JSON.stringify(value));
+              changes[key] = { newValue: value };
+            }
+            fixtureStorageListeners.forEach(listener => listener(changes, "local"));
+            callback?.();
+          }
+        },
         sync: {
           get(defaults, callback) {
             callback({});
@@ -128,6 +142,7 @@
     </div>
     <script src="../../tools/shared.js"></script>
     <script src="../../tools/content.js"></script>
+    <script src="../../tools/bookmarks.js"></script>
     <script>
       function runFixtureCopy(selectionTarget, clickNativeButton = false) {
         const selection = window.getSelection();

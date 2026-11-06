@@ -106,7 +106,7 @@ assert.equal(toolsApi.shouldPreserveSubmitPosition({ scrollHeight: 1000, clientH
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "manifest.json"), "utf8"));
 const toolsContentScript = manifest.content_scripts.find((entry) => entry.js && entry.js.includes("tools/content.js"));
 assert.ok(toolsContentScript, "tools must be registered as a separate content-script module");
-assert.deepEqual(toolsContentScript.js, ["tools/shared.js", "tools/content.js"]);
+assert.deepEqual(toolsContentScript.js, ["tools/shared.js", "tools/content.js", "tools/bookmarks.js"]);
 assert.deepEqual(toolsContentScript.css, ["tools/content.css"]);
 assert.doesNotMatch(JSON.stringify(manifest.permissions), /clipboard|scripting/i, "tools must not add clipboard or scripting permissions");
 assert.equal(toolsContentScript.world, undefined, "tools must stay in the normal isolated content-script world");
@@ -160,11 +160,13 @@ assert.deepEqual(toolsApi.resolveToolSettings(oldSettings), {
   "gpttoolkit.scrollGuard.enabled": false,
   "gpttoolkit.latexCopy.enabled": true,
   "gpttoolkit.latexCopy.tex.enabled": true,
-  "gpttoolkit.conversationHistory.enabled": true
+  "gpttoolkit.conversationHistory.enabled": true,
+  "gpttoolkit.bookmarks.enabled": true
 });
 assert.deepEqual(toolsApi.getToolMigration(oldSettings), {
   "gpttoolkit.scrollGuard.enabled": false, "gpttoolkit.latexCopy.tex.enabled": true,
-  "gpttoolkit.conversationHistory.enabled": true
+  "gpttoolkit.conversationHistory.enabled": true,
+  "gpttoolkit.bookmarks.enabled": true
 });
 assert.deepEqual(toolsApi.getToolMigration({...oldSettings, ...toolsApi.getToolMigration(oldSettings)}), {});
 

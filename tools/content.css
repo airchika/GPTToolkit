@@ -1,6 +1,6 @@
 #gpttoolkit-latex-toolbar,
 #gpttoolkit-tools-toast,
-#gpttoolkit-history-panel {
+:is(#gpttoolkit-history-panel, #gpttoolkit-bookmarks-panel) {
   --gpttoolkit-tools-text: #0d0d0d;
   --gpttoolkit-tools-surface: #fff;
   --gpttoolkit-tools-border: rgba(0, 0, 0, 0.14);
@@ -15,7 +15,7 @@
   font: 12px/1.2 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-html:is(.dark, [data-theme="dark"]) :is(#gpttoolkit-latex-toolbar, #gpttoolkit-tools-toast, #gpttoolkit-history-panel) {
+html:is(.dark, [data-theme="dark"]) :is(#gpttoolkit-latex-toolbar, #gpttoolkit-tools-toast, #gpttoolkit-history-panel, #gpttoolkit-bookmarks-panel) {
   --gpttoolkit-tools-text: #f7f7f8;
   --gpttoolkit-tools-surface: #2f2f2f;
   --gpttoolkit-tools-border: rgba(255, 255, 255, 0.16);
@@ -71,15 +71,15 @@ html:is(.dark, [data-theme="dark"]) :is(#gpttoolkit-latex-toolbar, #gpttoolkit-t
   border-color: #ef6262;
 }
 
-#gpttoolkit-conversation-history {
+:is(#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks) {
   display: inline-flex;
   align-items: center;
   flex: none;
   pointer-events: auto;
 }
-#gpttoolkit-conversation-history[hidden],
-#gpttoolkit-conversation-history [hidden] { display: none !important; }
-#gpttoolkit-conversation-history > button {
+:is(#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks)[hidden],
+:is(#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks) [hidden] { display: none !important; }
+:is(#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks) > button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -92,14 +92,14 @@ html:is(.dark, [data-theme="dark"]) :is(#gpttoolkit-latex-toolbar, #gpttoolkit-t
   background: transparent;
   cursor: pointer;
 }
-#gpttoolkit-conversation-history > button:is(:hover, [aria-expanded="true"]) {
+:is(#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks) > button:is(:hover, [aria-expanded="true"]) {
   background: var(--color-primary-ghost-hover, var(--gpttoolkit-tools-hover, rgba(128, 128, 128, 0.15)));
 }
-#gpttoolkit-conversation-history button:focus-visible {
+:is(#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks) button:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: -3px;
 }
-#gpttoolkit-history-panel {
+:is(#gpttoolkit-history-panel, #gpttoolkit-bookmarks-panel) {
   inset: auto;
   margin: 0;
   width: min(300px, calc(100vw - 16px));
@@ -109,17 +109,17 @@ html:is(.dark, [data-theme="dark"]) :is(#gpttoolkit-latex-toolbar, #gpttoolkit-t
   border-radius: 12px;
   padding: 4px;
 }
-#gpttoolkit-history-panel [data-gpttoolkit-history-heading] {
+:is(#gpttoolkit-history-panel, #gpttoolkit-bookmarks-panel) :is([data-gpttoolkit-history-heading], [data-gpttoolkit-bookmark-heading]) {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 4px 8px 4px 12px;
 }
-#gpttoolkit-history-panel [data-gpttoolkit-history-heading] strong { padding-block: 6px; font-weight: 600; }
-#gpttoolkit-history-panel button[data-gpttoolkit-history-back] { width: auto; padding: 6px 8px; flex: none; }
-#gpttoolkit-history-panel ol { list-style: none; padding: 0; margin: 0; }
-#gpttoolkit-history-panel button {
+:is(#gpttoolkit-history-panel, #gpttoolkit-bookmarks-panel) :is([data-gpttoolkit-history-heading], [data-gpttoolkit-bookmark-heading]) strong { padding-block: 6px; font-weight: 600; }
+:is(#gpttoolkit-history-panel, #gpttoolkit-bookmarks-panel) button:is([data-gpttoolkit-history-back], [data-gpttoolkit-bookmark-back]) { width: auto; padding: 6px 8px; flex: none; }
+:is(#gpttoolkit-history-panel, #gpttoolkit-bookmarks-panel) ol { list-style: none; padding: 0; margin: 0; }
+:is(#gpttoolkit-history-panel, #gpttoolkit-bookmarks-panel) button {
   display: block;
   width: 100%;
   padding: 10px 12px;
@@ -133,6 +133,13 @@ html:is(.dark, [data-theme="dark"]) :is(#gpttoolkit-latex-toolbar, #gpttoolkit-t
   overflow-wrap: anywhere;
   cursor: pointer;
 }
-#gpttoolkit-history-panel button:is(:hover, [aria-current="true"]) {
+:is(#gpttoolkit-history-panel, #gpttoolkit-bookmarks-panel) button:is(:hover, [aria-current="true"]) {
   background: var(--gpttoolkit-tools-hover);
 }
+
+#gpttoolkit-bookmarks-panel li { display: flex; align-items: start; }
+#gpttoolkit-bookmarks-panel [data-gpttoolkit-bookmark-jump] { flex: 1; min-width: 0; }
+#gpttoolkit-bookmarks-panel [data-gpttoolkit-bookmark-remove] { flex: none; width: 32px; padding-inline: 4px; }
+#gpttoolkit-bookmarks-panel p { padding: 6px 12px; margin: 0; line-height: 1.5; }
+#gpttoolkit-bookmarks-panel [role="status"]:empty { display: none; }
+#gpttoolkit-bookmarks-panel button:disabled { opacity: 0.5; cursor: default; }

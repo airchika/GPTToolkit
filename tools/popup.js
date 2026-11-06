@@ -6,13 +6,20 @@
   const latexCopyToggle = document.querySelector("[data-gpttoolkit-latex-copy-enabled]");
   const latexTexToggle = document.querySelector("[data-gpttoolkit-latex-tex-enabled]");
   const historyToggle = document.querySelector("[data-gpttoolkit-conversation-history-enabled]");
+  const bookmarksToggle = document.querySelector("[data-gpttoolkit-bookmarks-enabled]");
   const toolsTab = document.querySelector('[data-style-mode="tools"]');
   const status = document.getElementById("status");
-  if (!toolsApi || !scrollGuardToggle || !latexCopyToggle || !latexTexToggle || !historyToggle) {
+  if (!toolsApi || !scrollGuardToggle || !latexCopyToggle || !latexTexToggle || !historyToggle || !bookmarksToggle) {
     return;
   }
 
   const toolSettings = [
+    {
+      toggle: bookmarksToggle,
+      storageKey: toolsApi.bookmarksEnabledStorageKey,
+      enabledText: "Conversation bookmarks enabled.",
+      disabledText: "Conversation bookmarks disabled. Saved bookmarks are kept."
+    },
     {
       toggle: historyToggle,
       storageKey: toolsApi.conversationHistoryEnabledStorageKey,
@@ -51,7 +58,7 @@
   );
 
   toolsTab?.addEventListener("click", () => {
-    status.textContent = "Conversation history, reading-position protection and LaTeX quick copy are enabled by default.";
+    status.textContent = "Bookmarks, conversation history, reading-position protection and LaTeX quick copy are enabled by default.";
   });
 
   toolSettings.forEach(({ toggle, storageKey, enabledText, disabledText }) => {

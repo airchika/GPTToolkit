@@ -7,7 +7,8 @@ const http = require("node:http");
 const { chromium } = require("playwright");
 const root = path.resolve(__dirname, "..");
 const server = http.createServer((req, res) => {
-  const file = path.resolve(root, "." + new URL(req.url, "http://localhost").pathname);
+  const pathname = new URL(req.url, "http://localhost").pathname;
+  const file = path.resolve(root, "." + (/^\/c\/fixture-/.test(pathname) ? "/tests/fixtures/tools-browser.html" : pathname));
   if (!file.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
   fs.readFile(file, (error, data) => {
     if (error) { res.writeHead(404).end(); return; }
@@ -24,6 +25,112 @@ const server = http.createServer((req, res) => {
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     const base = `http://127.0.0.1:${server.address().port}`;
+    // Persisted bookmarks: long-answer offsets, nested/page return, reload and route isolation.
+    await page.goto(base + "/c/fixture-bookmarks");
+    const bookmarks = page.locator("#gpttoolkit-conversation-bookmarks");
+    const bookmarkToggle = bookmarks.locator(":scope > button");
+    const bookmarkPanel = page.locator("#gpttoolkit-bookmarks-panel");
+    const savedBookmarks = bookmarkPanel.locator("[data-gpttoolkit-bookmark-jump]");
+    const bookmarkBack = bookmarkPanel.locator("[data-gpttoolkit-bookmark-back]");
+    const bookmarkScroll = () => page.evaluate(() => ({top:document.getElementById("thread-scroll").scrollTop, page:document.scrollingElement.scrollTop}));
+    const setupBookmarkThread = () => page.evaluate(() => {
+      document.body.style.minHeight = "2400px";
+      Object.assign(document.querySelector("header").style, {position:"fixed", top:"0", right:"0", zIndex:"100"});
+      document.querySelector("main").innerHTML = Array.from({length:4}, (_, i) =>
+        `<section data-chatgpt-search-unit-key="message-${i}:${i % 2 ? 'user' : 'assistant'}" style="height:900px"><div data-message-author-role="${i % 2 ? 'user' : 'assistant'}" style="height:100%">Saved message ${i} &lt;script&gt;safe&lt;/script&gt;</div></section>`).join("");
+    });
+    await setupBookmarkThread();
+    await bookmarks.waitFor();
+    await page.waitForFunction(() => document.getElementById("gpttoolkit-conversation-bookmarks")?.nextElementSibling?.id === "gpttoolkit-conversation-history");
+    await page.evaluate(() => { document.getElementById("thread-scroll").scrollTop = 1250; window.scrollTo(0, 40); });
+    const savedPosition = await bookmarkScroll();
+    await bookmarkToggle.click();
+    await bookmarkPanel.locator("[data-gpttoolkit-bookmark-add]").click();
+    assert.equal(await savedBookmarks.count(), 1);
+    assert.match(await savedBookmarks.first().textContent(), /Saved message 1 <script>safe<\/script>/);
+    assert.equal(await bookmarkPanel.locator("script").count(), 0);
+    await bookmarkPanel.locator("[data-gpttoolkit-bookmark-add]").click();
+    assert.equal(await savedBookmarks.count(), 1, "same position is deduplicated");
+    await page.evaluate(() => { document.getElementById("thread-scroll").scrollTop = 100; window.scrollTo(0, 0); });
+    const beforeFirstJump = await bookmarkScroll();
+    await savedBookmarks.first().click();
+    assert.equal((await bookmarkScroll()).top, savedPosition.top, "restore offset inside long message");
+    const beforeSecondJump = await bookmarkScroll();
+    await savedBookmarks.first().click();
+    await bookmarkBack.click();
+    assert.deepEqual(await bookmarkScroll(), beforeSecondJump);
+    await bookmarkBack.click();
+    assert.deepEqual(await bookmarkScroll(), beforeFirstJump);
+    assert.equal(await bookmarkBack.isVisible(), false);
+    const bookmarkLight = await bookmarkPanel.evaluate(el => getComputedStyle(el).backgroundColor);
+    await page.evaluate(() => document.documentElement.classList.add("dark"));
+    assert.notEqual(await bookmarkPanel.evaluate(el => getComputedStyle(el).backgroundColor), bookmarkLight);
+    await page.reload();
+    await setupBookmarkThread();
+    await bookmarkToggle.click();
+    assert.equal(await savedBookmarks.count(), 1, "bookmark survives a full content-script reload");
+    await savedBookmarks.first().click();
+    assert.equal((await bookmarkScroll()).top, savedPosition.top);
+    await page.evaluate(() => {
+      history.pushState({}, "", "/c/fixture-other");
+      window.dispatchEvent(new Event("gpttoolkit:routechange"));
+    });
+    await bookmarkToggle.click();
+    assert.equal(await savedBookmarks.count(), 0);
+    assert.equal(await bookmarkBack.isVisible(), false);
+    await page.evaluate(() => {
+      history.pushState({}, "", "/c/fixture-bookmarks");
+      window.dispatchEvent(new Event("gpttoolkit:routechange"));
+    });
+    await bookmarkToggle.click();
+    assert.equal(await savedBookmarks.count(), 1);
+    await page.evaluate(() => document.querySelector('[data-chatgpt-search-unit-key="message-1:user"]').remove());
+    const beforeMissingJump = await bookmarkScroll();
+    await savedBookmarks.first().click();
+    assert.deepEqual(await bookmarkScroll(), beforeMissingJump);
+    assert.match(await bookmarkPanel.locator('[role="status"]').textContent(), /尚未加载/);
+    await page.evaluate(() => fixtureStorageListeners.forEach(fn => fn({"gpttoolkit.bookmarks.enabled":{newValue:false}}, "sync")));
+    assert.equal(await bookmarks.count(), 0);
+    await page.evaluate(() => fixtureStorageListeners.forEach(fn => fn({"gpttoolkit.bookmarks.enabled":{newValue:true}}, "sync")));
+    await bookmarkToggle.click();
+    assert.equal(await savedBookmarks.count(), 1, "disable keeps persistent records");
+    await page.evaluate(() => {
+      globalThis.fixtureOriginalSet = chrome.storage.local.set;
+      chrome.storage.local.set = (_values, callback) => {
+        chrome.runtime.lastError = {message:"fixture quota failure"};
+        callback();
+        delete chrome.runtime.lastError;
+      };
+    });
+    await bookmarkPanel.locator("[data-gpttoolkit-bookmark-remove]").click();
+    assert.equal(await savedBookmarks.count(), 1, "failed deletion keeps the persisted record");
+    assert.match(await bookmarkPanel.locator('[role="status"]').textContent(), /保存失败/);
+    await page.evaluate(() => { chrome.storage.local.set = fixtureOriginalSet; });
+    // A delayed read from the old conversation must not replace the new list.
+    await page.evaluate(() => {
+      globalThis.fixtureOriginalGet = chrome.storage.local.get;
+      globalThis.fixturePendingReads = [];
+      chrome.storage.local.get = (key, callback) => fixturePendingReads.push(() => fixtureOriginalGet(key, callback));
+      history.pushState({}, "", "/c/fixture-delayed");
+      window.dispatchEvent(new Event("gpttoolkit:routechange"));
+      history.pushState({}, "", "/c/fixture-bookmarks");
+      window.dispatchEvent(new Event("gpttoolkit:routechange"));
+      chrome.storage.local.get = fixtureOriginalGet;
+      fixturePendingReads.reverse().forEach(read => read());
+    });
+    await bookmarkToggle.click();
+    assert.equal(await savedBookmarks.count(), 1, "stale async reads cannot leak across routes");
+    await bookmarkPanel.locator("[data-gpttoolkit-bookmark-remove]").click();
+    assert.equal(await savedBookmarks.count(), 0);
+    await page.reload();
+    await bookmarkToggle.click();
+    assert.equal(await savedBookmarks.count(), 0, "deletion persists");
+    await page.evaluate(() => {
+      history.pushState({}, "", "/");
+      window.dispatchEvent(new Event("gpttoolkit:routechange"));
+    });
+    assert.equal(await bookmarks.count(), 0, "unsaved conversations have no bookmark entry");
+    console.log("PASS persistent bookmarks: icon order, deduplication, long-answer offset, return stack, safe labels, theme, reload, route isolation, missing targets, disable/re-enable and deletion");
     await page.goto(base + "/tests/fixtures/content-css-browser.html");
     const probe = () => page.evaluate(() => Object.fromEntries(
       ["ui", "prompt-textarea", "message-text", "explicit-span", "code", "inline-code", "cm-token", "formula", "role-formula", "mathml"]
@@ -94,6 +201,8 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.evaluate(()=>fixtureSettings["gpttoolkit.latexCopy.enabled"]), false);
     await page.uncheck("[data-gpttoolkit-conversation-history-enabled]");
     assert.equal(await page.evaluate(()=>fixtureSettings["gpttoolkit.conversationHistory.enabled"]), false);
+    await page.uncheck("[data-gpttoolkit-bookmarks-enabled]");
+    assert.equal(await page.evaluate(()=>fixtureSettings["gpttoolkit.bookmarks.enabled"]), false);
     console.log("PASS synthetic popup defaults, font selection and tool toggles");
 
     await page.goto(base + "/tests/fixtures/tools-browser.html");
