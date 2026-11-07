@@ -12,14 +12,40 @@
   // A title dropdown is also a menu, but is not the trailing chat-actions area.
   const toolbarActionsSelector = '[data-testid="app-shell-header-context-menu-surface"] button[aria-label="Chat actions"], [data-app-shell-main-titlebar] button[aria-label="Chat actions"], [data-testid="conversation-options-button"]';
   const toolbarShareSelector = '[data-testid="app-shell-header-context-menu-surface"] button[aria-label="Share"], [data-app-shell-main-titlebar] button[aria-label="Share"]';
-  const toolbarAnchorSelector = toolbarActionsSelector + ", " + toolbarShareSelector;
+  const toolbarMenuSelector = '[data-app-shell-main-titlebar] [data-app-shell-header-obstacle] button[aria-haspopup="menu"], [data-testid="app-shell-header-context-menu-surface"] [data-app-shell-header-obstacle] button[aria-haspopup="menu"]';
+  const toolbarAnchorSelector = toolbarActionsSelector + ", " + toolbarShareSelector + ", " + toolbarMenuSelector;
+  const toolbarSurfaceSelector = '[data-testid="app-shell-header-context-menu-surface"], [data-app-shell-main-titlebar], [data-app-shell-titlebar]';
+  const toolbarUiSelector = "#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks";
+
+  function isToolbarMutation(record) {
+    const target = record.target instanceof Element ? record.target : record.target.parentElement;
+    return Boolean(target && !target.closest(toolbarUiSelector) && target.closest(toolbarSurfaceSelector));
+  }
 
   function findToolbarAnchor() {
-    for (const selector of [toolbarActionsSelector, toolbarShareSelector]) {
-      const anchor = Array.from(document.querySelectorAll(selector)).find(element =>
-        !element.closest('[hidden], [aria-hidden="true"], [inert]') &&
-        element.checkVisibility({ visibilityProperty: true }));
-      if (anchor) return anchor;
+    const visible = element => !element.closest('[hidden], [aria-hidden="true"], [inert]') &&
+      element.checkVisibility({ visibilityProperty: true }) && element.getBoundingClientRect().width > 0;
+    // Share identifies the trailing group even when its menu loses its label.
+    // Never expand the search to title dropdowns elsewhere in the header.
+    const share = Array.from(document.querySelectorAll(toolbarShareSelector)).find(visible);
+    if (share) {
+      const group = share.closest('[data-app-shell-header-obstacle]') || share.parentElement;
+      const candidates = Array.from(group.querySelectorAll('button[aria-haspopup="menu"], button[aria-label="Share"], [data-testid="conversation-options-button"]'))
+        .filter(element => !element.closest(toolbarUiSelector) && visible(element));
+      const first = candidates[0] || share;
+      // Mount beside a fixed-size menu/tooltip wrapper, never inside its slot.
+      let anchor = first;
+      while (anchor.parentElement !== group) anchor = anchor.parentElement;
+      return anchor;
+    }
+    for (const selector of [toolbarActionsSelector, toolbarMenuSelector]) {
+      let anchor = Array.from(document.querySelectorAll(selector)).find(element =>
+        !element.closest(toolbarUiSelector) && visible(element));
+      if (anchor) {
+        const group = anchor.closest('[data-app-shell-header-obstacle]');
+        if (group) while (anchor.parentElement !== group) anchor = anchor.parentElement;
+        return anchor;
+      }
     }
     return null;
   }
@@ -165,7 +191,7 @@
   }
 
   globalThis.GPTToolkitTools = {
-    toolbarAnchorSelector, findToolbarAnchor,
+    toolbarAnchorSelector, findToolbarAnchor, isToolbarMutation,
     resolveToolSettings, getToolMigration, loadToolSettings,
     conversationHistoryEnabledStorageKey,
     bookmarksEnabledStorageKey,

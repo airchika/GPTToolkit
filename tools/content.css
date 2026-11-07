@@ -72,14 +72,22 @@ html:is(.dark, [data-theme="dark"]) :is(#gpttoolkit-latex-toolbar, #gpttoolkit-t
 }
 
 :is(#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks) {
+  position: relative;
   display: inline-flex;
   align-items: center;
   flex: none;
+  align-self: center;
+  width: var(--height-toolbar-button, 36px);
+  height: var(--height-toolbar-button, 36px);
   pointer-events: auto;
 }
 :is(#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks)[hidden],
 :is(#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks) [hidden] { display: none !important; }
 :is(#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks) > button {
+  position: static;
+  flex: none;
+  margin: 0;
+  transform: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;

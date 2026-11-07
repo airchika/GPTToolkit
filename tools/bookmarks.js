@@ -246,14 +246,9 @@
       ui.addEventListener("click", click);
       render();
     }
-    const button = ui.querySelector("button");
-    button.className = native.className;
-    for (const name of ["data-color", "data-variant", "data-uniform", "data-size", "data-icon-size"]) {
-      if (native.hasAttribute(name)) button.setAttribute(name, native.getAttribute(name));
-      else button.removeAttribute(name);
-    }
     ui.hidden = false;
     if (ui.nextElementSibling !== anchor) anchor.before(ui);
+    position();
   }
 
   function schedule() { if (enabled && !frame) frame = requestAnimationFrame(mount); }
@@ -280,6 +275,7 @@
     document[method]("keydown", keydown);
     document[method]("scroll", position, true);
     window[method]("resize", position);
+    window[method]("resize", schedule);
     window[method](routeEvent, reset);
     observer?.disconnect();
     observer = null;
@@ -287,12 +283,12 @@
       observer = new MutationObserver(batch => {
         const relevant = node => node instanceof Element && (node.matches(anchorSelector) ||
           node.querySelector(anchorSelector) || node.id === "gpttoolkit-conversation-history" || node === ui);
-        if (batch.some(record => record.type === "attributes" ?
+        if (batch.some(record => api.isToolbarMutation(record) || (record.type === "attributes" ?
           !record.target.closest("#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks") && relevant(record.target) :
-          [...record.addedNodes, ...record.removedNodes].some(relevant))) schedule();
+          [...record.addedNodes, ...record.removedNodes].some(relevant)))) schedule();
       });
       observer.observe(document.body, { childList: true, subtree: true,
-        attributes: true, attributeFilter: ["hidden", "aria-hidden", "inert"] });
+        attributes: true, attributeFilter: ["hidden", "aria-hidden", "inert", "class", "style", "aria-label", "aria-haspopup", "data-testid"] });
     } else {
       cancelAnimationFrame(frame);
       frame = 0;

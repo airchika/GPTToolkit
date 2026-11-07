@@ -187,14 +187,10 @@
   function mountHistoryEntry() {
     const anchor = toolsApi.findToolbarAnchor();
     if (!anchor || !historyUi) return false;
-    const button = historyUi.querySelector("button");
-    // Borrow native presentation only, never IDs, menu wiring or event handlers.
-    button.className = anchor.className;
-    for (const name of ["data-color", "data-variant", "data-uniform", "data-size", "data-icon-size"]) {
-      if (anchor.hasAttribute(name)) button.setAttribute(name, anchor.getAttribute(name));
-      else button.removeAttribute(name);
-    }
+    // Native action classes can include absolute positioning or negative margins.
+    // Our own CSS controls geometry; native color variables supply presentation.
     if (historyUi.nextElementSibling !== anchor) anchor.before(historyUi);
+    positionHistoryPanel();
     return true;
   }
 
@@ -261,6 +257,7 @@
     document[method]("keydown", onHistoryKeydown);
     window[method](routeChangeEventName, resetHistoryRoute);
     window[method]("resize", positionHistoryPanel);
+    window[method]("resize", scheduleHistoryRefresh);
     document[method]("scroll", positionHistoryPanel, true);
     if (enabled) {
       historyObserver = new MutationObserver(records => {
@@ -268,14 +265,16 @@
           (node.matches(userMessageSelector + ", " + historyAnchorSelector) ||
             node.querySelector(userMessageSelector + ", " + historyAnchorSelector) || node === historyUi);
         if (records.some(record => {
-          if (record.type === "attributes") return !record.target.closest("#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks");
+          if (toolsApi.isToolbarMutation(record)) return true;
+          if (record.type === "attributes") return !["class", "style", "aria-label", "aria-haspopup", "data-testid"].includes(record.attributeName) &&
+            !record.target.closest("#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks");
           const target = record.target instanceof Element ? record.target : record.target.parentElement;
           if (target?.closest(userMessageSelector)) return true;
           return [...record.addedNodes, ...record.removedNodes].some(touchesHistoryNodes);
         })) scheduleHistoryRefresh();
       });
       historyObserver.observe(document.body, { childList: true, subtree: true, characterData: true,
-        attributes: true, attributeFilter: ["data-message-author-role", "data-chatgpt-search-unit-key", "hidden", "aria-hidden", "inert"] });
+        attributes: true, attributeFilter: ["data-message-author-role", "data-chatgpt-search-unit-key", "hidden", "aria-hidden", "inert", "class", "style", "aria-label", "aria-haspopup", "data-testid"] });
       scheduleHistoryRefresh();
     } else {
       historyObserver?.disconnect();

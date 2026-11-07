@@ -185,6 +185,72 @@ const server = http.createServer((req, res) => {
     await bookmarks.waitFor();
     assert.equal(await page.locator("#gpttoolkit-conversation-history").isVisible(), true);
     console.log("PASS redesigned titlebar: left title menu excluded, Share fallback, rendered trailing order, independent tools, cached hidden headers, replacement and visibility recovery");
+    // Native menu buttons can reappear, be wrapped in fixed-size slots, and
+    // toggle visibility through CSS without replacing their surrounding toolbar.
+    await page.goto(base + "/c/fixture-dynamic-toolbar");
+    await bookmarks.waitFor();
+    await page.evaluate(() => {
+      const style = document.createElement("style");
+      style.textContent = '.fixture-native-slot {position:relative;width:36px;height:36px;flex:none} .fixture-native-menu {position:absolute;inset:0;width:36px;height:36px;margin:0;transform:translateX(0)} .fixture-hide-menu {display:none}';
+      document.head.append(style);
+      document.querySelector("header").innerHTML = '<div data-app-shell-main-titlebar style="display:flex;width:100%;justify-content:space-between"><button type="button" aria-haspopup="menu" id="dynamic-title">Title</button><div data-app-shell-header-obstacle style="display:flex;align-items:center;gap:4px" id="dynamic-actions"><div class="fixture-native-slot fixture-hide-menu" id="native-menu-slot"><button type="button" aria-haspopup="menu" class="fixture-native-menu" id="dynamic-menu">…</button></div><button type="button" aria-label="Share" id="dynamic-share">Share</button></div></div>';
+    });
+    const expectDynamicOrder = slot => page.waitForFunction(slot => {
+      const history = document.getElementById("gpttoolkit-conversation-history");
+      const bookmark = document.getElementById("gpttoolkit-conversation-bookmarks");
+      return history?.nextElementSibling?.id === slot && bookmark?.nextElementSibling === history;
+    }, slot);
+    await expectDynamicOrder("dynamic-share");
+    await page.locator("#native-menu-slot").evaluate(el => el.classList.remove("fixture-hide-menu"));
+    await expectDynamicOrder("native-menu-slot");
+    const assertNoToolbarOverlap = async () => {
+      const result = await page.evaluate(() => {
+        const buttons = ['#gpttoolkit-conversation-bookmarks > button', '#gpttoolkit-conversation-history > button', '#dynamic-menu', '#dynamic-share']
+          .map(selector => document.querySelector(selector)).filter(element => element && element.checkVisibility());
+        return buttons.every((button, index) => {
+          const rect = button.getBoundingClientRect();
+          const style = getComputedStyle(button);
+          const center = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+          return rect.width > 0 && (center === button || button.contains(center)) &&
+            buttons.slice(index + 1).every(other => {
+              const next = other.getBoundingClientRect();
+              return rect.right <= next.left || next.right <= rect.left || rect.bottom <= next.top || next.bottom <= rect.top;
+            }) && (!button.parentElement.id.startsWith('gpttoolkit-') || style.position === 'static');
+        });
+      });
+      assert.equal(result, true, "tool and native hit targets must remain separate");
+    };
+    await assertNoToolbarOverlap();
+    await bookmarkToggle.click();
+    assert.equal(await bookmarkPanel.isVisible(), true);
+    await page.keyboard.press("Escape");
+    await page.locator("#dynamic-menu").evaluate(el => { el.dataset.clicked = "false"; el.addEventListener("click", () => { el.dataset.clicked = "true"; }); });
+    await page.locator("#dynamic-menu").click();
+    assert.equal(await page.locator("#dynamic-menu").getAttribute("data-clicked"), "true");
+    await page.locator("#native-menu-slot").evaluate(el => { el.style.display = "none"; });
+    await expectDynamicOrder("dynamic-share");
+    await page.locator("#native-menu-slot").evaluate(el => { el.style.display = ""; });
+    await expectDynamicOrder("native-menu-slot");
+    await page.locator("#dynamic-share").evaluate(el => { el.hidden = true; });
+    await expectDynamicOrder("native-menu-slot");
+    await assertNoToolbarOverlap();
+    await page.locator("#dynamic-share").evaluate(el => { el.hidden = false; });
+    await page.locator("#native-menu-slot").evaluate(el => el.remove());
+    await expectDynamicOrder("dynamic-share");
+    await page.locator("#dynamic-actions").evaluate(el => {
+      const slot = document.createElement("div");
+      slot.id = "native-menu-slot"; slot.className = "fixture-native-slot";
+      slot.innerHTML = '<button type="button" id="dynamic-menu" class="fixture-native-menu" aria-haspopup="menu">…</button>';
+      el.prepend(slot);
+    });
+    await expectDynamicOrder("native-menu-slot");
+    await page.setViewportSize({width:390, height:700});
+    await assertNoToolbarOverlap();
+    await page.setViewportSize({width:1280, height:720});
+    await assertNoToolbarOverlap();
+    assert.equal(await bookmarks.count(), 1);
+    assert.equal(await page.locator("#gpttoolkit-conversation-history").count(), 1);
+    console.log("PASS dynamic native menus: unlabeled menu reappearance, fixed slots, class/style visibility, removal/reinsertion, Share hiding, responsive resize, separate hit targets and native clicks");
     await page.goto(base + "/tests/fixtures/content-css-browser.html");
     const probe = () => page.evaluate(() => Object.fromEntries(
       ["ui", "prompt-textarea", "message-text", "explicit-span", "code", "inline-code", "cm-token", "formula", "role-formula", "mathml"]
