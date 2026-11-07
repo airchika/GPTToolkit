@@ -173,7 +173,7 @@
     if (focusWasInside) historyUi.querySelector("button").focus({ preventScroll: true });
   }
 
-  const historyAnchorSelector = '[data-testid="app-shell-header-context-menu-surface"] button[aria-haspopup="menu"], [data-app-shell-main-titlebar] button[aria-label="Chat actions"], [data-testid="conversation-options-button"]';
+  const historyAnchorSelector = toolsApi.toolbarAnchorSelector;
 
   function positionHistoryPanel() {
     const panel = historyUi?.querySelector("nav");
@@ -185,7 +185,7 @@
   }
 
   function mountHistoryEntry() {
-    const anchor = document.querySelector(historyAnchorSelector);
+    const anchor = toolsApi.findToolbarAnchor();
     if (!anchor || !historyUi) return false;
     const button = historyUi.querySelector("button");
     // Borrow native presentation only, never IDs, menu wiring or event handlers.
@@ -268,14 +268,14 @@
           (node.matches(userMessageSelector + ", " + historyAnchorSelector) ||
             node.querySelector(userMessageSelector + ", " + historyAnchorSelector) || node === historyUi);
         if (records.some(record => {
-          if (record.type === "attributes") return true;
+          if (record.type === "attributes") return !record.target.closest("#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks");
           const target = record.target instanceof Element ? record.target : record.target.parentElement;
           if (target?.closest(userMessageSelector)) return true;
           return [...record.addedNodes, ...record.removedNodes].some(touchesHistoryNodes);
         })) scheduleHistoryRefresh();
       });
       historyObserver.observe(document.body, { childList: true, subtree: true, characterData: true,
-        attributes: true, attributeFilter: ["data-message-author-role", "data-chatgpt-search-unit-key"] });
+        attributes: true, attributeFilter: ["data-message-author-role", "data-chatgpt-search-unit-key", "hidden", "aria-hidden", "inert"] });
       scheduleHistoryRefresh();
     } else {
       historyObserver?.disconnect();

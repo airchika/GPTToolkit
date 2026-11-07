@@ -9,6 +9,20 @@
   const defaultLatexTexEnabled = true;
   const scrollBottomGapThreshold = 150;
   const scrollGuardDuration = 2000;
+  // A title dropdown is also a menu, but is not the trailing chat-actions area.
+  const toolbarActionsSelector = '[data-testid="app-shell-header-context-menu-surface"] button[aria-label="Chat actions"], [data-app-shell-main-titlebar] button[aria-label="Chat actions"], [data-testid="conversation-options-button"]';
+  const toolbarShareSelector = '[data-testid="app-shell-header-context-menu-surface"] button[aria-label="Share"], [data-app-shell-main-titlebar] button[aria-label="Share"]';
+  const toolbarAnchorSelector = toolbarActionsSelector + ", " + toolbarShareSelector;
+
+  function findToolbarAnchor() {
+    for (const selector of [toolbarActionsSelector, toolbarShareSelector]) {
+      const anchor = Array.from(document.querySelectorAll(selector)).find(element =>
+        !element.closest('[hidden], [aria-hidden="true"], [inert]') &&
+        element.checkVisibility({ visibilityProperty: true }));
+      if (anchor) return anchor;
+    }
+    return null;
+  }
   const latexFormats = Object.freeze({
     tex: "tex",
     inline: "inline",
@@ -151,6 +165,7 @@
   }
 
   globalThis.GPTToolkitTools = {
+    toolbarAnchorSelector, findToolbarAnchor,
     resolveToolSettings, getToolMigration, loadToolSettings,
     conversationHistoryEnabledStorageKey,
     bookmarksEnabledStorageKey,

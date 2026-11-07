@@ -131,6 +131,60 @@ const server = http.createServer((req, res) => {
     });
     assert.equal(await bookmarks.count(), 0, "unsaved conversations have no bookmark entry");
     console.log("PASS persistent bookmarks: icon order, deduplication, long-answer offset, return stack, safe labels, theme, reload, route isolation, missing targets, disable/re-enable and deletion");
+    // Current ChatGPT moved its title menu left and left only Share on the right.
+    await page.goto(base + "/c/fixture-titlebar");
+    await bookmarks.waitFor();
+    await page.evaluate(() => {
+      document.querySelector("header").innerHTML = '<div id="hidden-old-header" hidden><button type="button" aria-label="Chat actions" aria-haspopup="menu">…</button></div><div data-app-shell-main-titlebar="true" style="display:flex;width:100%;align-items:center;justify-content:space-between"><div id="title-wrapper"><button id="chat-title" type="button" aria-haspopup="menu">Conversation title</button></div><div id="trailing-actions" style="display:flex;align-items:center"><button id="header-share" type="button" aria-label="Share">Share</button></div></div>';
+    });
+    const assertTrailingOrder = () => page.waitForFunction(() => {
+      const history = document.getElementById("gpttoolkit-conversation-history");
+      const bookmarks = document.getElementById("gpttoolkit-conversation-bookmarks");
+      return history?.parentElement?.id === "trailing-actions" && history.nextElementSibling?.id === "header-share" &&
+        bookmarks?.nextElementSibling === history;
+    });
+    await assertTrailingOrder();
+    assert.equal(await page.locator("#title-wrapper aside").count(), 0);
+    const trailingMetrics = await bookmarks.locator(":scope > button").evaluate(el => {
+      const icon = el.getBoundingClientRect();
+      const title = document.getElementById("chat-title").getBoundingClientRect();
+      const share = document.getElementById("header-share").getBoundingClientRect();
+      return {display:getComputedStyle(el.parentElement).display, iconLeft:icon.left, iconRight:icon.right, titleRight:title.right, shareLeft:share.left, hidden:el.parentElement.hidden};
+    });
+    assert.ok(["inline-flex", "flex"].includes(trailingMetrics.display) && trailingMetrics.iconLeft > trailingMetrics.titleRight && trailingMetrics.iconRight <= trailingMetrics.shareLeft, JSON.stringify(trailingMetrics));
+    await bookmarkToggle.click();
+    assert.equal(await bookmarkPanel.isVisible(), true);
+    await page.keyboard.press("Escape");
+    await page.evaluate(() => fixtureStorageListeners.forEach(fn => fn({"gpttoolkit.conversationHistory.enabled":{newValue:false}}, "sync")));
+    await page.waitForFunction(() => document.getElementById("gpttoolkit-conversation-bookmarks")?.nextElementSibling?.id === "header-share");
+    await page.evaluate(() => fixtureStorageListeners.forEach(fn => fn({"gpttoolkit.conversationHistory.enabled":{newValue:true}}, "sync")));
+    await assertTrailingOrder();
+    await page.evaluate(() => {
+      const old = document.querySelector("header");
+      const replacement = old.cloneNode(true);
+      replacement.querySelectorAll('aside, #hidden-old-header').forEach(el => el.remove());
+      replacement.id = "replacement-titlebar";
+      old.setAttribute("aria-hidden", "true");
+      old.style.display = "none";
+      // The hidden cached header has earlier native anchors in document order.
+      document.body.append(replacement);
+    });
+    await page.waitForFunction(() => document.getElementById("gpttoolkit-conversation-history")?.closest("header")?.id === "replacement-titlebar");
+    assert.equal(await bookmarks.count(), 1);
+    await page.locator("#replacement-titlebar").evaluate(el => { el.hidden = true; });
+    await page.waitForFunction(() => document.getElementById("gpttoolkit-conversation-history")?.hidden && document.getElementById("gpttoolkit-conversation-bookmarks")?.hidden);
+    assert.equal(await page.evaluate(async () => {
+      const original = window.requestAnimationFrame;
+      let count = 0;
+      window.requestAnimationFrame = callback => { count++; return original(callback); };
+      await new Promise(resolve => original(() => original(() => original(resolve))));
+      window.requestAnimationFrame = original;
+      return count;
+    }), 0, "hiding tools must not sustain an observer/animation-frame loop");
+    await page.locator("#replacement-titlebar").evaluate(el => { el.hidden = false; });
+    await bookmarks.waitFor();
+    assert.equal(await page.locator("#gpttoolkit-conversation-history").isVisible(), true);
+    console.log("PASS redesigned titlebar: left title menu excluded, Share fallback, rendered trailing order, independent tools, cached hidden headers, replacement and visibility recovery");
     await page.goto(base + "/tests/fixtures/content-css-browser.html");
     const probe = () => page.evaluate(() => Object.fromEntries(
       ["ui", "prompt-textarea", "message-text", "explicit-span", "code", "inline-code", "cm-token", "formula", "role-formula", "mathml"]

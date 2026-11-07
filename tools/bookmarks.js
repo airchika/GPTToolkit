@@ -6,7 +6,7 @@
   const routeEvent = "gpttoolkit:routechange";
   const prefix = "gpttoolkit.bookmarks.";
   const messageSelector = '[data-message-author-role="user"], [data-message-author-role="assistant"], [data-chatgpt-search-unit-key$=":user"], [data-chatgpt-search-unit-key$=":assistant"]';
-  const anchorSelector = '[data-testid="app-shell-header-context-menu-surface"] button[aria-haspopup="menu"], [data-app-shell-main-titlebar] button[aria-label="Chat actions"], [data-testid="conversation-options-button"]';
+  const anchorSelector = api.toolbarAnchorSelector;
   let enabled = false;
   let ui = null;
   let observer = null;
@@ -234,8 +234,9 @@
   function mount() {
     frame = 0;
     if (!enabled) return;
-    const native = document.querySelector(anchorSelector);
-    const anchor = document.getElementById("gpttoolkit-conversation-history") || native;
+    const native = api.findToolbarAnchor();
+    const history = document.getElementById("gpttoolkit-conversation-history");
+    const anchor = history?.nextElementSibling === native ? history : native;
     if (!native || !anchor || !storageKey) { if (ui) ui.hidden = true; close(); return; }
     if (!ui) {
       ui = document.createElement("aside");
@@ -286,9 +287,12 @@
       observer = new MutationObserver(batch => {
         const relevant = node => node instanceof Element && (node.matches(anchorSelector) ||
           node.querySelector(anchorSelector) || node.id === "gpttoolkit-conversation-history" || node === ui);
-        if (batch.some(record => [...record.addedNodes, ...record.removedNodes].some(relevant))) schedule();
+        if (batch.some(record => record.type === "attributes" ?
+          !record.target.closest("#gpttoolkit-conversation-history, #gpttoolkit-conversation-bookmarks") && relevant(record.target) :
+          [...record.addedNodes, ...record.removedNodes].some(relevant))) schedule();
       });
-      observer.observe(document.body, { childList: true, subtree: true });
+      observer.observe(document.body, { childList: true, subtree: true,
+        attributes: true, attributeFilter: ["hidden", "aria-hidden", "inert"] });
     } else {
       cancelAnimationFrame(frame);
       frame = 0;
